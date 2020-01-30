@@ -1,6 +1,6 @@
 package xseelog
 
 const (
-	fileAccess = "access.log"
-	fileError  = "error.log"
+	fileInfo  = "app.log"
+	fileError = "error.log"
 )

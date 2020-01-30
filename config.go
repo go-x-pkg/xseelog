@@ -99,8 +99,25 @@ func NewConfig() *Config {
 type ConfigLogger struct {
 	Prefix string `yaml:"prefix"`
 
+	FileInfo  string `yaml:"file-info"`
+	FileError string `yaml:"file-error"`
+
 	LevelMin log.Level `yaml:"level-min"`
 	LevelMax log.Level `yaml:"level-max"`
+}
+
+func (cl *ConfigLogger) fileInfo() string {
+	if cl.FileInfo != "" {
+		return cl.FileInfo
+	}
+	return fileInfo
+}
+
+func (cl *ConfigLogger) fileError() string {
+	if cl.FileError != "" {
+		return cl.FileError
+	}
+	return fileError
 }
 
 func (cl *ConfigLogger) Dump(ctx *dumpctx.Ctx, w io.Writer) {
@@ -108,11 +125,12 @@ func (cl *ConfigLogger) Dump(ctx *dumpctx.Ctx, w io.Writer) {
 
 	fmt.Fprintf(w, "prefix: %s\n", cl.Prefix)
 
-	ctx.Enter()
-	defer ctx.Leave()
-
-	fmt.Fprintf(w, "%slevel-min: %s\n", ctx.Indent(), cl.LevelMin)
-	fmt.Fprintf(w, "%slevel-max: %s\n", ctx.Indent(), cl.LevelMax)
+	ctx.Wrap(func() {
+		fmt.Fprintf(w, "%sfile-info: %s\n", ctx.Indent(), cl.fileInfo())
+		fmt.Fprintf(w, "%sfile-error: %s\n", ctx.Indent(), cl.fileError())
+		fmt.Fprintf(w, "%slevel-min: %s\n", ctx.Indent(), cl.LevelMin)
+		fmt.Fprintf(w, "%slevel-max: %s\n", ctx.Indent(), cl.LevelMax)
+	})
 }
 
 func (cl *ConfigLogger) logger(c *Config) (seelog.LoggerInterface, error) {
@@ -197,13 +215,13 @@ func (cl *ConfigLogger) logger(c *Config) (seelog.LoggerInterface, error) {
 	}
 
 	if !c.DisableFile {
-		pathAccess := filepath.Join(c.Dir, fileAccess)
-		pathError := filepath.Join(c.Dir, fileError)
+		pathInfo := filepath.Join(c.Dir, cl.fileInfo())
+		pathError := filepath.Join(c.Dir, cl.fileError())
 
 		// logrotate writer open here
-		fileAccessWriter, err := seelog.NewFileWriter(pathAccess)
+		fileInfoWriter, err := seelog.NewFileWriter(pathInfo)
 		if err != nil {
-			return nil, fmt.Errorf("error open file-access writer: %w", err)
+			return nil, fmt.Errorf("error open file-info writer: %w", err)
 		}
 
 		// logrotate writer open here
@@ -217,12 +235,12 @@ func (cl *ConfigLogger) logger(c *Config) (seelog.LoggerInterface, error) {
 			return nil, fmt.Errorf("error gen format-file: %w", err)
 		}
 
-		dispatcherFileAccess, err := seelog.NewFilterDispatcher(formatterFile, []interface{}{fileAccessWriter},
+		dispatcherFileInfo, err := seelog.NewFilterDispatcher(formatterFile, []interface{}{fileInfoWriter},
 			seelog.TraceLvl, seelog.DebugLvl, seelog.InfoLvl,
 			seelog.WarnLvl, seelog.ErrorLvl, seelog.CriticalLvl,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("error gen dispatcher file-access: %w", err)
+			return nil, fmt.Errorf("error gen dispatcher file-info: %w", err)
 		}
 
 		dispatcherFileError, err := seelog.NewFilterDispatcher(formatterFile, []interface{}{fileErrorWriter},
@@ -232,7 +250,7 @@ func (cl *ConfigLogger) logger(c *Config) (seelog.LoggerInterface, error) {
 		}
 
 		receivers = append(receivers,
-			dispatcherFileAccess,
+			dispatcherFileInfo,
 			dispatcherFileError)
 	}
 
