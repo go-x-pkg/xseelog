@@ -1,6 +1,6 @@
 module github.com/go-x-pkg/xseelog
 
-go 1.13
+go 1.19
 
 require (
   github.com/go-x-pkg/log v0.0.6
